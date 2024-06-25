@@ -269,6 +269,7 @@ FLOWS = {
         "ipma",
         "ipp",
         "iqvia",
+        "irceline",
         "islamic_prayer_times",
         "iss",
         "ista_ecotrend",

@@ -2893,6 +2893,12 @@
       "config_flow": true,
       "iot_class": "cloud_polling"
     },
+    "irceline": {
+      "name": "IRCEL - CELINE: Air quality Belgium",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "cloud_polling"
+    },
     "irish_rail_transport": {
       "name": "Irish Rail Transport",
       "integration_type": "hub",

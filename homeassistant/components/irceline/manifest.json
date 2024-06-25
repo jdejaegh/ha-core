@@ -1,0 +1,13 @@
+{
+  "domain": "irceline",
+  "name": "IRCEL - CELINE: Air quality Belgium",
+  "codeowners": ["@jdejaegh"],
+  "config_flow": true,
+  "dependencies": ["zone"],
+  "documentation": "https://www.home-assistant.io/integrations/irceline",
+  "homekit": {},
+  "iot_class": "cloud_polling",
+  "requirements": ["open-irceline==0.1.0"],
+  "ssdp": [],
+  "zeroconf": []
+}

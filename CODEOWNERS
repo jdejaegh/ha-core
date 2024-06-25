@@ -698,6 +698,8 @@ build.json @home-assistant/supervisor
 /tests/components/ipp/ @ctalkington
 /homeassistant/components/iqvia/ @bachya
 /tests/components/iqvia/ @bachya
+/homeassistant/components/irceline/ @jdejaegh
+/tests/components/irceline/ @jdejaegh
 /homeassistant/components/irish_rail_transport/ @ttroy50
 /homeassistant/components/isal/ @bdraco
 /tests/components/isal/ @bdraco
