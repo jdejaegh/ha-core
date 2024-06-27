@@ -1,6 +1,8 @@
 """Sensors for pollutants from IRCEL - CELINE."""
 
+from collections.abc import Mapping
 import logging
+from typing import Any
 
 from homeassistant.components import sensor
 from homeassistant.components.sensor import SensorEntity
@@ -53,9 +55,20 @@ class IrcelinePollutantRio(CoordinatorEntity, SensorEntity):
             f"{str(entry.title).lower()}_{pollutant}"
         )
         self._attr_device_info = coordinator.shared_device_info
-        self._attr_translation_key = f"{pollutant}"
+        self._attr_translation_key = pollutant
+        self._pollutant = pollutant
 
     @property
     def native_value(self) -> float | None:
         """Get value of the sensor."""
-        return 42.1
+        return self._get_pollutant_data().get("value")
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return the timestamp of the data as additional attribute."""
+        return {"timestamp": self._get_pollutant_data().get("timestamp")}
+
+    def _get_pollutant_data(self) -> dict:
+        return self.coordinator.data.get("rio", {}).get(
+            POLLUTANT_TO_FEATURE[self._pollutant], {}
+        )
