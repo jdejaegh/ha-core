@@ -20,7 +20,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, IRCEL_CELINE, POLLUTANT_TO_FEATURE, RIO_HOURLY_POLLUTANT
+from .const import (
+    DOMAIN,
+    FORECAST_POLLUTANT,
+    IRCEL_CELINE,
+    POLLUTANT_TO_FEATURE,
+    RIO_HOURLY_POLLUTANT,
+)
 from .utils import get_config_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,5 +68,14 @@ class IrcelineCoordinator(DataUpdateCoordinator):
             )
         except IrcelineApiError as e:
             raise UpdateFailed("Could not get RIO hourly data") from e
+
+        try:
+            forecast_data |= await self._forecast_client.get_data(
+                features=[POLLUTANT_TO_FEATURE[p] for p in FORECAST_POLLUTANT],
+                timestamp=date.today(),
+                position=position,
+            )
+        except IrcelineApiError as e:
+            raise UpdateFailed("Could not get forecast data") from e
 
         return {"rio": rio_data, "forecast": forecast_data}
