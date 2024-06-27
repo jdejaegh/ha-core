@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .const import DOMAIN
+from .const import DOMAIN, PLATFORMS
 from .coordinator import IrcelineCoordinator
-
-PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 type IrcelineConfigEntry = ConfigEntry  # noqa: F821
 

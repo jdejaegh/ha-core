@@ -3,9 +3,11 @@
 from open_irceline import RioFeature
 
 from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
+from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER, Platform
 
 DOMAIN = "irceline"
+PLATFORMS: list[Platform] = [Platform.SENSOR]
+
 IRCEL_CELINE = "Belgian Interregional Environment Agency (IRCEL - CELINE)"
 ATTRIBUTION = f"Air quality data from the {IRCEL_CELINE}"
 
