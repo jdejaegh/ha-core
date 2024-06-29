@@ -7,7 +7,7 @@
   "documentation": "https://www.home-assistant.io/integrations/irceline",
   "homekit": {},
   "iot_class": "cloud_polling",
-  "requirements": ["open-irceline==0.1.0"],
+  "requirements": ["open-irceline==2.0.0"],
   "ssdp": [],
   "zeroconf": []
 }
