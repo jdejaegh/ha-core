@@ -11,6 +11,8 @@ from open_irceline import (
     IrcelineForecastClient,
     IrcelineRioClient,
     RioFeature,
+    belaqi_index_forecast_daily,
+    belaqi_index_rio_hourly,
 )
 
 from homeassistant.config_entries import ConfigEntry
@@ -58,10 +60,8 @@ class IrcelineCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Zone '{self._zone}' not found")
         position = (zone.attributes[ATTR_LATITUDE], zone.attributes[ATTR_LONGITUDE])
 
-        rio_data: dict[RioFeature, FeatureValue] = {}
-        forecast_data: dict[tuple[ForecastFeature, date], FeatureValue] = {}
         try:
-            rio_data |= await self._rio_client.get_data(
+            rio_data: dict[RioFeature, FeatureValue] = await self._rio_client.get_data(
                 features=[POLLUTANT_TO_FEATURE[p] for p in RIO_HOURLY_POLLUTANT],
                 timestamp=datetime.now(UTC),
                 position=position,
@@ -70,7 +70,9 @@ class IrcelineCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("Could not get RIO hourly data") from e
 
         try:
-            forecast_data |= await self._forecast_client.get_data(
+            forecast_data: dict[
+                tuple[ForecastFeature, date], FeatureValue
+            ] = await self._forecast_client.get_data(
                 features=[POLLUTANT_TO_FEATURE[p] for p in FORECAST_POLLUTANT],
                 timestamp=date.today(),
                 position=position,
@@ -78,4 +80,29 @@ class IrcelineCoordinator(DataUpdateCoordinator):
         except IrcelineApiError as e:
             raise UpdateFailed("Could not get forecast data") from e
 
-        return {"rio": rio_data, "forecast": forecast_data}
+        try:
+            belaqi_forecast: dict[
+                date, FeatureValue
+            ] = await belaqi_index_forecast_daily(
+                forecast_client=self._forecast_client,
+                timestamp=date.today(),
+                position=position,
+            )
+        except IrcelineApiError as e:
+            raise UpdateFailed("Could not get BelAQI forecast data") from e
+
+        try:
+            belaqi: FeatureValue = await belaqi_index_rio_hourly(
+                rio_client=self._rio_client,
+                timestamp=datetime.now(UTC),
+                position=position,
+            )
+        except IrcelineApiError as e:
+            raise UpdateFailed("Could not get current BelAQI forecast") from e
+
+        return {
+            "rio": rio_data,
+            "forecast": forecast_data,
+            "belaqi_forecast": belaqi_forecast,
+            "belaqi": belaqi,
+        }

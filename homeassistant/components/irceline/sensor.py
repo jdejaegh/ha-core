@@ -1,4 +1,8 @@
 """Sensors for pollutants from IRCEL - CELINE."""
+# This file has three types of sensors:
+#  1. Current interpolated air quality readings (IrcelinePollutantRio)
+#  2. Forecast for today and the 3 next days (IrcelinePollutantForecast)
+#  3. Sensor for the BelAQI index
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
@@ -48,22 +52,23 @@ async def async_setup_entry(
         ]
     )
 
+    async_add_entities(
+        [IrcelineBelAqi(coordinator, entry, timedelta(days=d)) for d in range(4)]
+    )
+    async_add_entities([IrcelineBelAqi(coordinator, entry, None)])
 
-class IrcelinePollutantSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
-    """Abstract base class for other pollutant sensors from IRCELINE."""
 
-    _attr_attribution = ATTRIBUTION
+class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
+    """Abstract base class for sensors from IRCELINE."""
+
     _attr_has_entity_name = True
+    _attr_attribution = ATTRIBUTION
 
-    def __init__(self, coordinator: IrcelineCoordinator, pollutant: str) -> None:
+    def __init__(self, coordinator: IrcelineCoordinator) -> None:
         """Set up the sensor."""
         super().__init__(coordinator)
         SensorEntity.__init__(self)
-        self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
-        self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
         self._attr_device_info = coordinator.shared_device_info
-        self._attr_translation_key = pollutant
-        self._pollutant = pollutant
 
     @abstractmethod
     def _get_pollutant_data(self):
@@ -78,6 +83,20 @@ class IrcelinePollutantSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta
     def native_value(self) -> float | None:
         """Get value of the sensor."""
         return self._get_pollutant_data().get("value")
+
+
+class IrcelinePollutantSensor(IrcelineSensor, metaclass=ABCMeta):
+    """Abstract base class for other pollutant sensors from IRCELINE."""
+
+    def __init__(self, coordinator: IrcelineCoordinator, pollutant: str) -> None:
+        """Set up the sensor."""
+        super().__init__(coordinator)
+        SensorEntity.__init__(self)
+        self._attr_suggested_display_precision = 1
+        self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
+        self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
+        self._attr_translation_key = pollutant
+        self._pollutant = pollutant
 
 
 class IrcelinePollutantRio(IrcelinePollutantSensor):
@@ -125,3 +144,45 @@ class IrcelinePollutantForecast(IrcelinePollutantSensor):
         return self.coordinator.data.get("forecast", {}).get(
             (POLLUTANT_TO_FEATURE[self._pollutant], day), {}
         )
+
+
+class IrcelineBelAqi(IrcelineSensor):
+    """Representation of a BelAQI sensor with value extracted from IRCELINE."""
+
+    def __init__(
+        self,
+        coordinator: IrcelineCoordinator,
+        entry: ConfigEntry,
+        time_delta: timedelta | None,
+    ) -> None:
+        """Set up the sensor."""
+        super().__init__(coordinator)
+        self._attr_icon = "mdi:air-filter"
+
+        if time_delta is not None:
+            self._attr_unique_id = (
+                f"{entry.entry_id}-belaqi_forecast_d{time_delta.days}"
+            )
+            self.entity_id = sensor.ENTITY_ID_FORMAT.format(
+                f"{str(entry.title).lower()}_belaqi_forecast_d{time_delta.days}"
+            )
+        else:
+            self._attr_unique_id = f"{entry.entry_id}-belaqi"
+            self.entity_id = sensor.ENTITY_ID_FORMAT.format(
+                f"{str(entry.title).lower()}_belaqi"
+            )
+
+        self._time_delta = time_delta
+
+    def _get_pollutant_data(self):
+        if self._time_delta is None:
+            return self.coordinator.data.get("belaqi", {})
+
+        day = date.today() + self._time_delta
+        return self.coordinator.data.get("belaqi_forecast", {}).get(day, {})
+
+    @property
+    def native_value(self) -> int | None:
+        """Get value of the sensor."""
+        v = self._get_pollutant_data().get("value")
+        return v.value if v is not None else v
