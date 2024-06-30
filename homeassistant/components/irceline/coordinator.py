@@ -10,9 +10,8 @@ from open_irceline import (
     IrcelineApiError,
     IrcelineForecastClient,
     IrcelineRioClient,
+    IrcelineRioIfdmClient,
     RioFeature,
-    belaqi_index_forecast_daily,
-    belaqi_index_rio_hourly,
 )
 
 from homeassistant.config_entries import ConfigEntry
@@ -28,6 +27,7 @@ from .const import (
     IRCEL_CELINE,
     POLLUTANT_TO_FEATURE,
     RIO_HOURLY_POLLUTANT,
+    RIO_IFDM_HOURLY_POLLUTANT,
 )
 from .utils import get_config_value
 
@@ -42,11 +42,10 @@ class IrcelineCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass, _LOGGER, name="IRCEL - CELINE", update_interval=timedelta(minutes=30)
         )
-
-        self._rio_client = IrcelineRioClient(session=async_get_clientsession(hass))
-        self._forecast_client = IrcelineForecastClient(
-            session=async_get_clientsession(hass)
-        )
+        session = async_get_clientsession(hass)
+        self._rio_client = IrcelineRioClient(session=session)
+        self._rio_ifdm_client = IrcelineRioIfdmClient(session=session)
+        self._forecast_client = IrcelineForecastClient(session=session)
         self._zone = get_config_value(entry, CONF_ZONE)
         self.shared_device_info = DeviceInfo(
             entry_type=DeviceEntryType.SERVICE,
@@ -74,35 +73,20 @@ class IrcelineCoordinator(DataUpdateCoordinator):
                 tuple[ForecastFeature, date], FeatureValue
             ] = await self._forecast_client.get_data(
                 features=[POLLUTANT_TO_FEATURE[p] for p in FORECAST_POLLUTANT],
-                timestamp=date.today(),
                 position=position,
             )
         except IrcelineApiError as e:
             raise UpdateFailed("Could not get forecast data") from e
 
         try:
-            belaqi_forecast: dict[
-                date, FeatureValue
-            ] = await belaqi_index_forecast_daily(
-                forecast_client=self._forecast_client,
-                timestamp=date.today(),
+            rio_data |= await self._rio_ifdm_client.get_data(
+                features=[POLLUTANT_TO_FEATURE[p] for p in RIO_IFDM_HOURLY_POLLUTANT],
                 position=position,
             )
         except IrcelineApiError as e:
-            raise UpdateFailed("Could not get BelAQI forecast data") from e
-
-        try:
-            belaqi: FeatureValue = await belaqi_index_rio_hourly(
-                rio_client=self._rio_client,
-                timestamp=datetime.now(UTC),
-                position=position,
-            )
-        except IrcelineApiError as e:
-            raise UpdateFailed("Could not get current BelAQI forecast") from e
+            raise UpdateFailed("Could not get RIO IFDM hourly data") from e
 
         return {
             "rio": rio_data,
             "forecast": forecast_data,
-            "belaqi_forecast": belaqi_forecast,
-            "belaqi": belaqi,
         }
