@@ -61,7 +61,7 @@ class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
         super().__init__(coordinator)
         SensorEntity.__init__(self)
         self._attr_device_info = coordinator.shared_device_info
-        # self._attr_suggested_display_precision = 1
+        self._attr_suggested_display_precision = 1
         self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
         self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
         self._attr_translation_key = pollutant
@@ -77,7 +77,7 @@ class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
         return {"timestamp": self._get_pollutant_data().get("timestamp")}
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | int | None:
         """Get value of the sensor."""
         return self._get_pollutant_data().get("value")
 
