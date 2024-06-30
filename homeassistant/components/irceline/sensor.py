@@ -63,8 +63,7 @@ class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
         self._attr_device_info = coordinator.shared_device_info
         # self._attr_suggested_display_precision = 1
         self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
-        if POLLUTANT_TO_UNIT[pollutant] is not None:
-            self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
+        self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
         self._attr_translation_key = pollutant
         self._pollutant = pollutant
 
