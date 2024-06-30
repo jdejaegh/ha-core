@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import logging
 from typing import Any
 
@@ -59,7 +58,6 @@ async def validate_input(
 
     try:
         result = await api_client.get_data(
-            datetime.now(UTC),
             [RioFeature.PM10_HMEAN, RioFeature.NO2_HMEAN, RioFeature.O3_HMEAN],
             (zone.attributes[ATTR_LATITUDE], zone.attributes[ATTR_LONGITUDE]),
         )

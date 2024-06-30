@@ -1,8 +1,4 @@
 """Sensors for pollutants from IRCEL - CELINE."""
-# This file has three types of sensors:
-#  1. Current interpolated air quality readings (IrcelinePollutantRio)
-#  2. Forecast for today and the 3 next days (IrcelinePollutantForecast)
-#  3. Sensor for the BelAQI index
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
@@ -12,7 +8,7 @@ import logging
 from typing import Any
 
 from homeassistant.components import sensor
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -26,6 +22,7 @@ from .const import (
     POLLUTANT_TO_SENSOR_DEVICE_CLASS,
     POLLUTANT_TO_UNIT,
     RIO_HOURLY_POLLUTANT,
+    RIO_IFDM_HOURLY_POLLUTANT,
 )
 from .coordinator import IrcelineCoordinator
 
@@ -40,22 +37,17 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            IrcelinePollutantRio(coordinator, entry, pollutant)
-            for pollutant in RIO_HOURLY_POLLUTANT
+            IrcelineRio(coordinator, entry, pollutant)
+            for pollutant in RIO_HOURLY_POLLUTANT.union(RIO_IFDM_HOURLY_POLLUTANT)
         ]
     )
 
     async_add_entities(
         [
-            IrcelinePollutantForecast(coordinator, entry, pollutant, timedelta(days=d))
+            IrcelineForecast(coordinator, entry, pollutant, timedelta(days=d))
             for pollutant, d in product(FORECAST_POLLUTANT, range(4))
         ]
     )
-
-    async_add_entities(
-        [IrcelineBelAqi(coordinator, entry, timedelta(days=d)) for d in range(4)]
-    )
-    async_add_entities([IrcelineBelAqi(coordinator, entry, None)])
 
 
 class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
@@ -64,11 +56,17 @@ class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
     _attr_has_entity_name = True
     _attr_attribution = ATTRIBUTION
 
-    def __init__(self, coordinator: IrcelineCoordinator) -> None:
+    def __init__(self, coordinator: IrcelineCoordinator, pollutant: str) -> None:
         """Set up the sensor."""
         super().__init__(coordinator)
         SensorEntity.__init__(self)
         self._attr_device_info = coordinator.shared_device_info
+        # self._attr_suggested_display_precision = 1
+        self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
+        if POLLUTANT_TO_UNIT[pollutant] is not None:
+            self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
+        self._attr_translation_key = pollutant
+        self._pollutant = pollutant
 
     @abstractmethod
     def _get_pollutant_data(self):
@@ -85,21 +83,7 @@ class IrcelineSensor(CoordinatorEntity, SensorEntity, metaclass=ABCMeta):
         return self._get_pollutant_data().get("value")
 
 
-class IrcelinePollutantSensor(IrcelineSensor, metaclass=ABCMeta):
-    """Abstract base class for other pollutant sensors from IRCELINE."""
-
-    def __init__(self, coordinator: IrcelineCoordinator, pollutant: str) -> None:
-        """Set up the sensor."""
-        super().__init__(coordinator)
-        SensorEntity.__init__(self)
-        self._attr_suggested_display_precision = 1
-        self._attr_device_class = POLLUTANT_TO_SENSOR_DEVICE_CLASS[pollutant]
-        self._attr_native_unit_of_measurement = POLLUTANT_TO_UNIT[pollutant]
-        self._attr_translation_key = pollutant
-        self._pollutant = pollutant
-
-
-class IrcelinePollutantRio(IrcelinePollutantSensor):
+class IrcelineRio(IrcelineSensor):
     """Representation of a pollutant sensor with value extracted from the RIO interpolation of IRCELINE."""
 
     def __init__(
@@ -107,6 +91,7 @@ class IrcelinePollutantRio(IrcelinePollutantSensor):
     ) -> None:
         """Set up the sensor."""
         super().__init__(coordinator, pollutant)
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_unique_id = f"{entry.entry_id}-{pollutant}"
         self.entity_id = sensor.ENTITY_ID_FORMAT.format(
             f"{str(entry.title).lower()}_{pollutant}"
@@ -118,7 +103,7 @@ class IrcelinePollutantRio(IrcelinePollutantSensor):
         )
 
 
-class IrcelinePollutantForecast(IrcelinePollutantSensor):
+class IrcelineForecast(IrcelineSensor):
     """Representation of a pollutant sensor with value extracted from the daily forecast of IRCELINE."""
 
     _attr_has_entity_name = True
@@ -144,45 +129,3 @@ class IrcelinePollutantForecast(IrcelinePollutantSensor):
         return self.coordinator.data.get("forecast", {}).get(
             (POLLUTANT_TO_FEATURE[self._pollutant], day), {}
         )
-
-
-class IrcelineBelAqi(IrcelineSensor):
-    """Representation of a BelAQI sensor with value extracted from IRCELINE."""
-
-    def __init__(
-        self,
-        coordinator: IrcelineCoordinator,
-        entry: ConfigEntry,
-        time_delta: timedelta | None,
-    ) -> None:
-        """Set up the sensor."""
-        super().__init__(coordinator)
-        self._attr_icon = "mdi:air-filter"
-
-        if time_delta is not None:
-            self._attr_unique_id = (
-                f"{entry.entry_id}-belaqi_forecast_d{time_delta.days}"
-            )
-            self.entity_id = sensor.ENTITY_ID_FORMAT.format(
-                f"{str(entry.title).lower()}_belaqi_forecast_d{time_delta.days}"
-            )
-        else:
-            self._attr_unique_id = f"{entry.entry_id}-belaqi"
-            self.entity_id = sensor.ENTITY_ID_FORMAT.format(
-                f"{str(entry.title).lower()}_belaqi"
-            )
-
-        self._time_delta = time_delta
-
-    def _get_pollutant_data(self):
-        if self._time_delta is None:
-            return self.coordinator.data.get("belaqi", {})
-
-        day = date.today() + self._time_delta
-        return self.coordinator.data.get("belaqi_forecast", {}).get(day, {})
-
-    @property
-    def native_value(self) -> int | None:
-        """Get value of the sensor."""
-        v = self._get_pollutant_data().get("value")
-        return v.value if v is not None else v
